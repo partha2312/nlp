@@ -1,0 +1,13 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "l/v4eZed+UIMXXCClOuBrLOhRJg=",
+			"path": "github.com/gorilla/mux",
+			"revision": "ed099d42384823742bba0bf9a72b53b55c9e2e38",
+			"revisionTime": "2019-05-17T00:20:44Z"
+		}
+	],
+	"rootPath": "github.com/partha2312/nlp"
+}
