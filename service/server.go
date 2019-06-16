@@ -27,17 +27,28 @@ func New() *Server {
 
 func (s *Server) Init() {
 	s.buildNGram()
-	s.router.HandleFunc("/check", s.Check)
-	s.router.HandleFunc("/search/{word}", s.Search)
+	s.router.HandleFunc("/check", s.check)
+	s.router.HandleFunc("/search/{word}", s.search)
 	fmt.Println("serving on 8080")
 	http.ListenAndServe(":8080", s.router)
 }
 
-func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
+func (s *Server) buildNGram() {
+	reader := data.NewReader()
+	body, err := reader.Read("data/big.txt")
+	if err != nil {
+		fmt.Println(err)
+	}
+	start := time.Now()
+	s.ngram.ConstructNGrams(string(body))
+	fmt.Println(fmt.Sprintf("all grams done in %v", time.Since(start)))
+}
+
+func (s *Server) check(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
+func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	word := vars["word"]
 
@@ -55,15 +66,4 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(j)
-}
-
-func (s *Server) buildNGram() {
-	reader := data.NewReader()
-	body, err := reader.Read("data/big.txt")
-	if err != nil {
-		fmt.Println(err)
-	}
-	start := time.Now()
-	s.ngram.ConstructNGrams(string(body))
-	fmt.Println(fmt.Sprintf("all grams done in %v", time.Since(start)))
 }
