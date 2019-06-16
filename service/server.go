@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/partha2312/nlp/data"
 	"github.com/partha2312/nlp/nlp"
 )
 
@@ -14,15 +16,17 @@ type Server struct {
 	ngram  nlp.NGram
 }
 
-func New(ngram nlp.NGram) *Server {
+func New() *Server {
 	router := mux.NewRouter()
+	ngram := nlp.NewNGram()
 	return &Server{
 		router: router,
 		ngram:  ngram,
 	}
 }
 
-func (s *Server) InitRoutes() {
+func (s *Server) Init() {
+	s.buildNGram()
 	s.router.HandleFunc("/check", s.Check)
 	s.router.HandleFunc("/search/{word}", s.Search)
 	fmt.Println("serving on 8080")
@@ -51,4 +55,15 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(j)
+}
+
+func (s *Server) buildNGram() {
+	reader := data.NewReader()
+	body, err := reader.Read("data/big.txt")
+	if err != nil {
+		fmt.Println(err)
+	}
+	start := time.Now()
+	s.ngram.ConstructNGrams(string(body))
+	fmt.Println(fmt.Sprintf("all grams done in %v", time.Since(start)))
 }
