@@ -74,6 +74,8 @@ func (n *nGram) ConstructNGrams(text string) {
 }
 
 func (n *nGram) Fetch(words string) []string {
+	start := time.Now()
+	defer fmt.Println(fmt.Sprintf("result in %v", time.Since(start)))
 	words = sanitizeString(words)
 	if len(words) == 0 {
 		return nil
@@ -88,11 +90,12 @@ func (n *nGram) Fetch(words string) []string {
 
 	if val := n.lru.Get(last + lastButOne); val != nil {
 		if result, ok := val.([]string); ok {
+			fmt.Println(fmt.Sprintf("cache hit for %s", last+lastButOne))
 			return result
 		}
 	}
 
-	start := time.Now()
+	fetchStart := time.Now()
 	go n.biGramFetch(last)
 	var triGramsProcessed map[string]float32
 	if len(wordsArr) > 1 {
@@ -100,7 +103,7 @@ func (n *nGram) Fetch(words string) []string {
 		triGramsProcessed = <-n.triFetch
 	}
 	biGramsProcessed := <-n.biFetch
-	fmt.Println(fmt.Sprintf("fetch completed in %v", time.Since(start)))
+	fmt.Println(fmt.Sprintf("fetch completed in %v", time.Since(fetchStart)))
 
 	combined := postProcess(biGramsProcessed, triGramsProcessed)
 	sort.Sort(resultSorter(combined))
