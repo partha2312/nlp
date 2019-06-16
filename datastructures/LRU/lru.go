@@ -3,33 +3,33 @@ package datastructures
 import datastructures "github.com/partha2312/nlp/datastructures/doublylinkedlist"
 
 type LRU interface {
-	Get(key struct{}) *datastructures.DLLNode
-	Put(key, value struct{})
+	Get(key interface{}) interface{}
+	Put(key, value interface{})
 }
 
 type lru struct {
 	capacity int
-	cache    map[struct{}]*datastructures.DLLNode
+	cache    map[interface{}]*datastructures.DLLNode
 	dll      datastructures.DoublyLinkedList
 }
 
 func NewLRU(capacity int) LRU {
-	cache := make(map[struct{}]*datastructures.DLLNode)
+	cache := make(map[interface{}]*datastructures.DLLNode)
 	dll := datastructures.NewDoublyLinkedList()
 	return &lru{capacity, cache, dll}
 }
 
-func (l *lru) Get(key struct{}) *datastructures.DLLNode {
+func (l *lru) Get(key interface{}) interface{} {
 	node, ok := l.cache[key]
 	if !ok {
 		return nil
 	}
 	l.dll.DeleteNode(node)
 	l.dll.AddToHead(node)
-	return node
+	return node.GetValue()
 }
 
-func (l *lru) Put(key, value struct{}) {
+func (l *lru) Put(key, value interface{}) {
 	node, ok := l.cache[key]
 	if !ok {
 		if l.capacity == len(l.cache) {

@@ -1,13 +1,13 @@
 package datastructures
 
 type DLLNode struct {
-	key      struct{}
-	value    struct{}
+	key      interface{}
+	value    interface{}
 	previous *DLLNode
 	next     *DLLNode
 }
 
-func NewDLLNode(key, value struct{}) *DLLNode {
+func NewDLLNode(key, value interface{}) *DLLNode {
 	return &DLLNode{key: key, value: value}
 }
 
@@ -15,12 +15,16 @@ func newdllEmptyNode() *DLLNode {
 	return &DLLNode{}
 }
 
-func (d *DLLNode) SetValue(value struct{}) {
+func (d *DLLNode) SetValue(value interface{}) {
 	d.value = value
 }
 
-func (d *DLLNode) GetKey() struct{} {
+func (d *DLLNode) GetKey() interface{} {
 	return d.key
+}
+
+func (d *DLLNode) GetValue() interface{} {
+	return d.value
 }
 
 type DoublyLinkedList interface {
