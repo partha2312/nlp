@@ -75,7 +75,9 @@ func (n *nGram) ConstructNGrams(text string) {
 
 func (n *nGram) Fetch(words string) []string {
 	start := time.Now()
-	defer fmt.Println(fmt.Sprintf("result in %v", time.Since(start)))
+	defer func() {
+		fmt.Println(fmt.Sprintf("result in %v", time.Since(start)))
+	}()
 	words = sanitizeString(words)
 	if len(words) == 0 {
 		return nil
@@ -88,9 +90,9 @@ func (n *nGram) Fetch(words string) []string {
 		lastButOne = wordsArr[len(wordsArr)-2]
 	}
 
-	if val := n.lru.Get(last + lastButOne); val != nil {
+	if val := n.lru.Get(lastButOne + last); val != nil {
 		if result, ok := val.([]string); ok {
-			fmt.Println(fmt.Sprintf("cache hit for %s", last+lastButOne))
+			fmt.Println(fmt.Sprintf("cache hit for %s", lastButOne+last))
 			return result
 		}
 	}
@@ -99,7 +101,7 @@ func (n *nGram) Fetch(words string) []string {
 	go n.biGramFetch(last)
 	var triGramsProcessed map[string]float32
 	if len(wordsArr) > 1 {
-		go n.triGramFetch(last, lastButOne)
+		go n.triGramFetch(lastButOne, last)
 		triGramsProcessed = <-n.triFetch
 	}
 	biGramsProcessed := <-n.biFetch
@@ -116,23 +118,23 @@ func (n *nGram) Fetch(words string) []string {
 		}
 	}
 
-	n.lru.Put(last+lastButOne, result)
+	n.lru.Put(lastButOne+last, result)
 
 	return result
 }
 
 func (n *nGram) biGramFetch(last string) {
 	start := time.Now()
-	defer fmt.Println(fmt.Sprintf("bi gram fetch completed in %v", time.Since(start)))
 	biGrams := n.trieBiGram.Search(last + "$")
 	n.biFetch <- process(biGrams, n.biOccurance[last])
+	fmt.Println(fmt.Sprintf("bi gram fetch completed in %v", time.Since(start)))
 }
 
-func (n *nGram) triGramFetch(last, lastButOne string) {
+func (n *nGram) triGramFetch(lastButOne, last string) {
 	start := time.Now()
-	defer fmt.Println(fmt.Sprintf("tri gram fetch completed in %v", time.Since(start)))
-	triGrams := n.trieTriGram.Search(last + lastButOne + "$")
+	triGrams := n.trieTriGram.Search(lastButOne + last + "$")
 	n.triFetch <- process(triGrams, n.triOccurance[last+lastButOne])
+	fmt.Println(fmt.Sprintf("tri gram fetch completed in %v", time.Since(start)))
 }
 
 func (n *nGram) constructBiGramTrie(text string) {
