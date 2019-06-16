@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	datastructures "github.com/partha2312/nlp/datastructures/trie"
+	lru "github.com/partha2312/nlp/datastructures/lru"
+	trie "github.com/partha2312/nlp/datastructures/trie"
 )
 
 type NGram interface {
@@ -16,14 +17,19 @@ type NGram interface {
 }
 
 type nGram struct {
-	trieBiGram   datastructures.Trie
-	trieTriGram  datastructures.Trie
+	trieBiGram  trie.Trie
+	trieTriGram trie.Trie
+
 	biOccurance  map[string]int
 	triOccurance map[string]int
-	biDone       chan (bool)
-	triDone      chan (bool)
-	biFetch      chan (map[string]float32)
-	triFetch     chan (map[string]float32)
+
+	biDone  chan (bool)
+	triDone chan (bool)
+
+	biFetch  chan (map[string]float32)
+	triFetch chan (map[string]float32)
+
+	lru lru.LRU
 }
 
 type result struct {
@@ -38,14 +44,15 @@ func (r resultSorter) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
 func (r resultSorter) Less(i, j int) bool { return r[i].probability > r[j].probability }
 
 func NewNGram() NGram {
-	trieBiGram := datastructures.NewTrie()
-	trieTriGram := datastructures.NewTrie()
+	trieBiGram := trie.NewTrie()
+	trieTriGram := trie.NewTrie()
 	biOccurance := make(map[string]int)
 	triOccurance := make(map[string]int)
 	biDone := make(chan (bool))
 	triDone := make(chan (bool))
 	biFetch := make(chan (map[string]float32))
 	triFetch := make(chan (map[string]float32))
+	lru := lru.NewLRU(100)
 	return &nGram{
 		trieBiGram:   trieBiGram,
 		trieTriGram:  trieTriGram,
@@ -55,6 +62,7 @@ func NewNGram() NGram {
 		triDone:      triDone,
 		biFetch:      biFetch,
 		triFetch:     triFetch,
+		lru:          lru,
 	}
 }
 
@@ -66,6 +74,10 @@ func (n *nGram) ConstructNGrams(text string) {
 }
 
 func (n *nGram) Fetch(words string) []string {
+	start := time.Now()
+	defer func() {
+		fmt.Println(fmt.Sprintf("result in %v", time.Since(start)))
+	}()
 	words = sanitizeString(words)
 	if len(words) == 0 {
 		return nil
@@ -73,17 +85,27 @@ func (n *nGram) Fetch(words string) []string {
 	wordsArr := strings.Split(words, " ")
 
 	last := wordsArr[len(wordsArr)-1]
+	lastButOne := ""
+	if len(wordsArr) > 1 {
+		lastButOne = wordsArr[len(wordsArr)-2]
+	}
 
-	start := time.Now()
+	if val := n.lru.Get(lastButOne + last); val != nil {
+		if result, ok := val.([]string); ok {
+			fmt.Println(fmt.Sprintf("cache hit for %s", lastButOne+last))
+			return result
+		}
+	}
+
+	fetchStart := time.Now()
 	go n.biGramFetch(last)
 	var triGramsProcessed map[string]float32
 	if len(wordsArr) > 1 {
-		lastButOne := wordsArr[len(wordsArr)-2]
-		go n.triGramFetch(last, lastButOne)
+		go n.triGramFetch(lastButOne, last)
 		triGramsProcessed = <-n.triFetch
 	}
 	biGramsProcessed := <-n.biFetch
-	fmt.Println(fmt.Sprintf("fetch completed in %v", time.Since(start)))
+	fmt.Println(fmt.Sprintf("fetch completed in %v", time.Since(fetchStart)))
 
 	combined := postProcess(biGramsProcessed, triGramsProcessed)
 	sort.Sort(resultSorter(combined))
@@ -96,21 +118,23 @@ func (n *nGram) Fetch(words string) []string {
 		}
 	}
 
+	n.lru.Put(lastButOne+last, result)
+
 	return result
 }
 
 func (n *nGram) biGramFetch(last string) {
 	start := time.Now()
 	biGrams := n.trieBiGram.Search(last + "$")
-	fmt.Println(fmt.Sprintf("bi gram fetch completed in %v", time.Since(start)))
 	n.biFetch <- process(biGrams, n.biOccurance[last])
+	fmt.Println(fmt.Sprintf("bi gram fetch completed in %v", time.Since(start)))
 }
 
-func (n *nGram) triGramFetch(last, lastButOne string) {
+func (n *nGram) triGramFetch(lastButOne, last string) {
 	start := time.Now()
-	triGrams := n.trieTriGram.Search(last + lastButOne + "$")
-	fmt.Println(fmt.Sprintf("tri gram fetch completed in %v", time.Since(start)))
+	triGrams := n.trieTriGram.Search(lastButOne + last + "$")
 	n.triFetch <- process(triGrams, n.triOccurance[last+lastButOne])
+	fmt.Println(fmt.Sprintf("tri gram fetch completed in %v", time.Since(start)))
 }
 
 func (n *nGram) constructBiGramTrie(text string) {
